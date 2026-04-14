@@ -1,19 +1,28 @@
 from ortools.sat.python import cp_model
 from second_half import generate_second_half
 
-teams = [
-    "ATA","BOL","CAG","COM","EMP",
-    "FIO","GEN","VER","INT","JUV",
-    "LAZ","LEC","MIL","MON","NAP",
-    "PAR","ROM","TOR","UDI","VEN"
-]
 
-derby_pairs = [("INT","MIL"), ("JUV","TOR"), ("LAZ","ROM")]
+teams = [
+    "ARS","AVL","BOU","BRE","BHA",
+    "BUR","CHE","CRY","EVE","FUL",
+    "LEE","LIV","MCI","MUN","NEW",
+    "NFO","SUN","TOT","WHU","WOL"
+]#contoh liga inggris
+
+
+big_matches = [ ("ARS","CHE"), ("ARS","LIV"), ("ARS","MCI"), ("ARS","MUN"), ("ARS","TOT"), 
+                ("CHE","LIV"), ("CHE","MCI"), ("CHE","MUN"), ("CHE","TOT"), 
+                ("LIV","MCI"), ("LIV","MUN"), ("LIV","TOT"), 
+                ("MCI","MUN"), ("MCI","TOT"), 
+                ("MUN","TOT") ]
+
+
+derby_pairs = [("ARS","TOT"), ("CHE","FUL"), ("EVE","LIV"), ("MCI","MUN"), ("NEW","SUN")]
 
 N = len(teams)
 R = N - 1  # 19 round
 
-shift = 3
+shift = 9
 
 team_idx = {t:i for i,t in enumerate(teams)}
 
@@ -135,9 +144,16 @@ for t1, t2 in derby_pairs:
     i = team_idx[t1]
     j = team_idx[t2]
 
-    for r in [0, 2]:  # Round 1 & Round 3
+    for r in [0, 8]:  # Round 1 & Round 3
         model.Add(x[i,j,r] == 0)
         model.Add(x[j,i,r] == 0)
+
+for (t1, t2) in big_matches:
+    i = team_idx[t1]
+    j = team_idx[t2]
+
+    model.Add(x[i,j,8] == 0)
+    model.Add(x[j,i,8] == 0)
 
 # =========================
 # Avoid HH-A-HH & AA-H-AA
@@ -186,6 +202,42 @@ for i in range(N):
         model.Add(h[i,r] != h[i,r+1]).OnlyEnforceIf(b.Not())
 
         breaks.append(b)
+
+big_home_count = {i: [] for i in range(N)}
+
+for (t1, t2) in big_matches:
+    i = team_idx[t1]
+    j = team_idx[t2]
+
+    for r in range(R):
+
+        # i home vs j
+        bh_i = model.NewBoolVar(f"bh_{i}_{j}_{r}")
+        model.Add(x[i,j,r] == 1).OnlyEnforceIf(bh_i)
+        model.Add(x[i,j,r] == 0).OnlyEnforceIf(bh_i.Not())
+
+        # j home vs i
+        bh_j = model.NewBoolVar(f"bh_{j}_{i}_{r}")
+        model.Add(x[j,i,r] == 1).OnlyEnforceIf(bh_j)
+        model.Add(x[j,i,r] == 0).OnlyEnforceIf(bh_j.Not())
+
+        big_home_count[i].append(bh_i)
+        big_home_count[j].append(bh_j)
+        
+
+big_penalties = []
+
+for i in range(N):
+    total = sum(big_home_count[i])
+
+    under = model.NewIntVar(0, 10, f"under_{i}")
+    over  = model.NewIntVar(0, 10, f"over_{i}")
+
+    model.Add(total + under >= 2)
+    model.Add(total - over <= 3)
+
+    big_penalties.append(under)
+    big_penalties.append(over)
 # # =========================
 # # Cross Break
 # # =========================
@@ -202,7 +254,8 @@ for i in range(N):
 
 model.Minimize(
     5 * sum(breaks) +
-    3 * (sum(hhahh) + sum(aahaa)) 
+    3 * (sum(hhahh) + sum(aahaa)) +
+    4 * sum(big_penalties)
 )
 
 # =========================
@@ -226,7 +279,7 @@ if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
                     round_matches.append((teams[i], teams[j]))
         first_half.append(round_matches)
 
-    second_half = generate_second_half(first_half, shift=3)
+    second_half = generate_second_half(first_half, shift=9)
     
     print_schedule(first_half, "FIRST HALF")
     print_schedule(second_half, "SECOND HALF")
