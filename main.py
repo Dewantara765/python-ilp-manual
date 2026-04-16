@@ -1,5 +1,6 @@
 from ortools.sat.python import cp_model
 from second_half import generate_second_half
+from evaluate import evaluate_full
 
 
 teams = [
@@ -22,9 +23,12 @@ derby_pairs = [("ARS","TOT"), ("CHE","FUL"), ("EVE","LIV"), ("MCI","MUN"), ("NEW
 N = len(teams)
 R = N - 1  # 19 round
 
-shift = 9
+shift = 10
+
+big_teams = ["ARS","CHE","LIV","MCI","MUN","TOT"]
 
 team_idx = {t:i for i,t in enumerate(teams)}
+big_idx = [team_idx[t] for t in big_teams]
 
 # =========================
 # Print helper
@@ -144,7 +148,7 @@ for t1, t2 in derby_pairs:
     i = team_idx[t1]
     j = team_idx[t2]
 
-    for r in [0, 8]:  # Round 1 & Round 3
+    for r in [0, 9]:  # Round 1 & Round 3
         model.Add(x[i,j,r] == 0)
         model.Add(x[j,i,r] == 0)
 
@@ -152,41 +156,20 @@ for (t1, t2) in big_matches:
     i = team_idx[t1]
     j = team_idx[t2]
 
-    model.Add(x[i,j,8] == 0)
-    model.Add(x[j,i,8] == 0)
+    model.Add(x[i,j,9] == 0)
+    model.Add(x[j,i,9] == 0)
 
 # =========================
-# Avoid HH-A-HH & AA-H-AA
+# Break Only in Even to Odd Round
 # =========================
-hhahh = []
-aahaa = []
-
 for i in range(N):
-    for r in range(R - 4):
+    for r in range(18):   # transition r -> r+1
 
-        # HH-A-HH
-        sum1 = (
-            h[i,r] + h[i,r+1] + (1-h[i,r+2]) +
-            h[i,r+3] + h[i,r+4]
-        )
-
-        v1 = model.NewBoolVar(f"hhahh_{i}_{r}")
-        model.Add(sum1 == 5).OnlyEnforceIf(v1)
-        model.Add(sum1 <= 4).OnlyEnforceIf(v1.Not())
-
-        hhahh.append(v1)
-
-        # AA-H-AA
-        sum2 = (
-            (1-h[i,r]) + (1-h[i,r+1]) + h[i,r+2] +
-            (1-h[i,r+3]) + (1-h[i,r+4])
-        )
-
-        v2 = model.NewBoolVar(f"aahaa_{i}_{r}")
-        model.Add(sum2 == 5).OnlyEnforceIf(v2)
-        model.Add(sum2 <= 4).OnlyEnforceIf(v2.Not())
-
-        aahaa.append(v2)
+        # jika r adalah odd index (0-based), berarti 1->2,3->4,...
+        if r == 15:
+            model.Add(h[i,r] != h[i,r+1])
+        elif r % 2 == 0:
+            model.Add(h[i,r] != h[i,r+1])
 # =========================
 # Break
 # =========================
@@ -238,6 +221,47 @@ for i in range(N):
 
     big_penalties.append(under)
     big_penalties.append(over)
+
+plays_big = {}
+
+for i in range(N):
+    for r in range(R):
+        plays_big[i, r] = model.NewBoolVar(f"plays_big_{i}_{r}")
+
+for i in range(N):
+    for r in range(R):
+        model.Add(
+            plays_big[i, r] ==
+            sum(
+                x[i, j, r] + x[j, i, r]
+                for j in big_idx if j != i
+            )
+        )
+
+big_violations = []
+
+for i in range(N):
+    for r in range(R - 3):
+        v = model.NewBoolVar(f"big_window_{i}_{r}")
+
+        # violation kalau > 2
+        model.Add(
+            plays_big[i, r] +
+            plays_big[i, r+1] +
+            plays_big[i, r+2] +
+            plays_big[i, r+3]
+            >= 3
+        ).OnlyEnforceIf(v)
+
+        model.Add(
+            plays_big[i, r] +
+            plays_big[i, r+1] +
+            plays_big[i, r+2] +
+            plays_big[i, r+3]
+            <= 2
+        ).OnlyEnforceIf(v.Not())
+
+        big_violations.append(v)
 # # =========================
 # # Cross Break
 # # =========================
@@ -253,9 +277,9 @@ for i in range(N):
 #     cross_breaks.append(b)
 
 model.Minimize(
-    5 * sum(breaks) +
-    3 * (sum(hhahh) + sum(aahaa)) +
-    4 * sum(big_penalties)
+    7* sum(breaks) +
+    3 * sum(big_penalties) +
+    5 * sum(big_violations)
 )
 
 # =========================
@@ -279,8 +303,24 @@ if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
                     round_matches.append((teams[i], teams[j]))
         first_half.append(round_matches)
 
-    second_half = generate_second_half(first_half, shift=9)
+    second_half = generate_second_half(first_half, shift=10)
+
+    full_schedule = first_half + second_half
     
-    print_schedule(first_half, "FIRST HALF")
-    print_schedule(second_half, "SECOND HALF")
+    print_schedule(full_schedule, "FULL SCHEDULE")
+
+    result = evaluate_full(full_schedule, teams, big_teams)
+
+    print(result["total_breaks"])
+    print(result["total_big_violations"])
+    print(result["total_imbalance"])
+
+    print("=== BREAK PER TEAM ===")
+for t, v in sorted(result["breaks_per_team"].items(), key=lambda x: -x[1]):
+    print(t, v)
+
+print("\n=== BIG VIOLATIONS PER TEAM ===")
+for t, v in sorted(result["big_per_team"].items(), key=lambda x: -x[1]):
+    print(t, v)
+    
 
