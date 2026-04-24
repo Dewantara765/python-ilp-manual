@@ -1,13 +1,13 @@
 from ortools.sat.python import cp_model
-from second_half import generate_second_half
+from second_half import generate_second_half_semi_deterministic
 from evaluate import evaluate_full
 
 
 teams = [
     "ARS","AVL","BOU","BRE","BHA",
-    "BUR","CHE","CRY","EVE","FUL",
-    "LEE","LIV","MCI","MUN","NEW",
-    "NFO","SUN","TOT","WHU","WOL"
+    "CHE","CRY","EVE","FUL","IPS",
+    "LEI","LIV","MCI","MUN","NEW",
+    "NFO","SOU","TOT","WHU","WOL"
 ]#contoh liga inggris
 
 
@@ -18,7 +18,7 @@ big_matches = [ ("ARS","CHE"), ("ARS","LIV"), ("ARS","MCI"), ("ARS","MUN"), ("AR
                 ("MUN","TOT") ]
 
 
-derby_pairs = [("ARS","TOT"), ("CHE","FUL"), ("EVE","LIV"), ("MCI","MUN"), ("NEW","SUN")]
+derby_pairs = [("ARS","TOT"), ("CHE","FUL"), ("EVE","LIV"), ("MCI","MUN")]
 
 N = len(teams)
 R = N - 1  # 19 round
@@ -165,10 +165,7 @@ for (t1, t2) in big_matches:
 for i in range(N):
     for r in range(18):   # transition r -> r+1
 
-        # jika r adalah odd index (0-based), berarti 1->2,3->4,...
-        if r == 15:
-            model.Add(h[i,r] != h[i,r+1])
-        elif r % 2 == 0:
+        if r % 2 == 0:
             model.Add(h[i,r] != h[i,r+1])
 # =========================
 # Break
@@ -303,7 +300,7 @@ if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
                     round_matches.append((teams[i], teams[j]))
         first_half.append(round_matches)
 
-    second_half = generate_second_half(first_half, shift=10)
+    second_half = generate_second_half_semi_deterministic(first_half)
 
     full_schedule = first_half + second_half
     
