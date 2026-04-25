@@ -300,9 +300,14 @@ if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
                     round_matches.append((teams[i], teams[j]))
         first_half.append(round_matches)
 
-    second_half = generate_second_half_semi_deterministic(first_half)
+    second_half, mapping = generate_second_half_semi_deterministic(first_half)
 
     full_schedule = first_half + second_half
+
+    for src in range(R):
+        print(f"Round {src} -> Round {mapping[src]}")
+
+
     
     print_schedule(full_schedule, "FULL SCHEDULE")
 

@@ -10,12 +10,14 @@ def generate_second_half_semi_deterministic(first_half, base_shift=10, jitter=1)
     }
 
     used_targets = set(fixed_map.values())
+    mapping = {}  # <-- simpan mapping di sini
 
     # =========================
     # apply fixed mapping
     # =========================
     for src, dst in fixed_map.items():
         second_half[dst] = [(away, home) for home, away in first_half[src]]
+        mapping[src] = dst  # <-- catat mapping
 
     # =========================
     # semi-deterministic mapping
@@ -38,5 +40,6 @@ def generate_second_half_semi_deterministic(first_half, base_shift=10, jitter=1)
         second_half[target] = [(away, home) for home, away in first_half[src]]
         used_targets.add(target)
 
-    return second_half
+        mapping[src] = target  # <-- catat mapping
 
+    return second_half, mapping
