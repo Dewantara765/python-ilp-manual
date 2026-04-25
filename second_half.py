@@ -24,14 +24,19 @@ def generate_second_half_semi_deterministic(first_half, base_shift=10, jitter=1)
     # =========================
     remaining_src = [r for r in range(R) if r not in fixed_map]
 
+    def circular_distance(a, b, R):
+            return min(abs(a - b), R - abs(a - b))
+    
     for src in remaining_src:
-        # base mapping (deterministic)
-        target = (src + base_shift) % R
+        ideal = (src + R//2) % R
 
-        # small controlled variation (jitter)
-        if jitter > 0:
-            shift_variation = random.choice([-jitter, 0, jitter])
-            target = (target + shift_variation) % R
+    # deviation kecil dari ideal
+        target = (ideal + random.choice([-1, 0, 1])) % R
+        
+
+        # bias supaya tidak terlalu jauh dari ideal
+        if circular_distance(target, ideal, R) > 2:
+            target = ideal
 
         # resolve collision
         while target in used_targets:

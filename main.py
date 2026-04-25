@@ -305,7 +305,7 @@ if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
     full_schedule = first_half + second_half
 
     for src in range(R):
-        print(f"Round {src} -> Round {mapping[src]}")
+        print(f"Round {src} => Round {mapping[src]}")
 
 
     
